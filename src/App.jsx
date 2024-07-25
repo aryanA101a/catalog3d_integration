@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useRef } from "react";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { IoIosArrowBack } from "react-icons/io";
 import { Slider } from "@/components/ui/slider";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -25,6 +26,9 @@ const App = () => {
   const [products, setProducts] = useState([]);
   const [filters, setFilters] = useState({});
   const [viewProducts, toggleViewProducts] = useState(false);
+  const [filtersToBeApplied, setFiltersToBeApplied] = useState({});
+  const [filtersApplied, toggleFiltersApplied] = useState(false);
+
   const pushToCatalogStack = (item) => {
     setCatalogStack((prevStack) => [...prevStack, item]);
   };
@@ -43,35 +47,46 @@ const App = () => {
       const data = await res.json();
       console.log(data);
       setCatalog(data.data.catalog);
-      pushToCatalogStack("root");
+      pushToCatalogStack({ id: -1, name: "root" });
     } catch (error) {
       console.log("Error fetching data", error);
     }
   };
-  const fetchProducts = async (categoryId) => {
+  const fetchProducts = async (categoryId, body) => {
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/v1/products/${categoryId}`
+        `${import.meta.env.VITE_API_URL}/v1/products/${categoryId}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        }
       );
       const data = await res.json();
       console.log(data);
-      setProducts(data.data);
+      return data.products;
     } catch (error) {
       console.log("Error fetching data", error);
+      return [];
     }
   };
   const fetchFilters = async (categoryId) => {
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/v1/filters/${categoryId}`
+        `${import.meta.env.VITE_API_URL}/v1/products/${categoryId}/filters`
       );
       const data = await res.json();
       console.log(data);
       setFilters(data);
+      setFiltersToBeApplied(initFiltersToBeApplied(data));
+      // console.log("filtersToBeApplied", filtersToBeApplied);
     } catch (error) {
       console.log("Error fetching data", error);
     }
   };
+
   useEffect(() => {
     fetchCatalog();
   }, []);
@@ -88,6 +103,7 @@ const App = () => {
                 toggleViewProducts(!viewProducts);
                 setProducts([]);
                 setFilters({});
+                setFiltersToBeApplied({});
               }
             }}
             type="submit"
@@ -99,14 +115,14 @@ const App = () => {
         <div className="m-6">
           <Breadcrumb className="h-10">
             <BreadcrumbList>
-              {catalogStack.map((categoryName, index) => (
+              {catalogStack.map((category, index) => (
                 <>
                   {index > 0 ? <BreadcrumbSeparator /> : null}
                   <BreadcrumbItem>
-                    {categoryName == "root"
+                    {category.name == "root"
                       ? "Catalog"
-                      : categoryName.charAt(0).toUpperCase() +
-                        categoryName.slice(1)}
+                      : category.name.charAt(0).toUpperCase() +
+                        category.name.slice(1)}
                   </BreadcrumbItem>
                 </>
               ))}
@@ -117,34 +133,101 @@ const App = () => {
               Object.keys(filters).length > 0 ? "m-4" : ""
             }`}
           >
+            {filters.sortCriteria ? (
+              <DropdownMenu className="border-black ">
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="rounded-full font-bold">
+                    sort
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  {filters.sortCriteria.map((value) => (
+                    <>
+                      <DropdownMenuLabel>
+                        {value}&nbsp;&nbsp;&nbsp;&nbsp;(inc)
+                      </DropdownMenuLabel>
+                      <DropdownMenuLabel>
+                        {value}&nbsp;&nbsp;&nbsp;&nbsp;(dec)
+                      </DropdownMenuLabel>
+                    </>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
             {Object.keys(filters).length > 0
-              ? filters.filterCriterias.map((criteria) => (
-                  <DropdownMenu className="border-black ">
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="rounded-full font-bold"
-                      >
-                        {criteria.name}
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      {criteria.name == "price" ? (
-                        <div className="flex w-40 max-w-sm items-center space-x-2 m-3">
-                          <p>${Math.min(...criteria.values.map(Number))}</p>
-                          <Slider className="" defaultValue={[33]} max={100} step={1} />
-                          <p>${Math.max(...criteria.values.map(Number))}</p>
-
-                        </div>
-                        
-                      ) : (
-                        criteria.values.map((value) => (
-                          <DropdownMenuLabel>{value}</DropdownMenuLabel>
-                        ))
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ))
+              ? filtersApplied || !filtersApplied
+                ? filters.filterCriteria.map((criteria) => (
+                    <DropdownMenu
+                      className="border-black "
+                      onOpenChange={(v) => {
+                        if (!v) {
+                          fetchProducts(
+                            catalogStack[catalogStack.length - 1].id,
+                            {
+                              filterCriteria: Object.values(
+                                filtersToBeApplied.filterCriteria
+                              ).filter((e) => e.values.length),
+                            }
+                          ).then((res) => {
+                            setProducts(res??[]);
+                            console.log("res", res);
+                          });
+                        }
+                      }}
+                    >
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="rounded-full font-bold"
+                        >
+                          {criteria.name}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        {criteria.name == "price" ? (
+                          <div className="flex w-40 max-w-sm items-center space-x-2 m-3">
+                            <p>${Math.min(...criteria.values.map(Number))}</p>
+                            <Slider
+                              className=""
+                              defaultValue={[33]}
+                              max={100}
+                              step={1}
+                            />
+                            <p>${Math.max(...criteria.values.map(Number))}</p>
+                          </div>
+                        ) : (
+                          criteria.values.map((value) => (
+                            <div className="flex items-center justify-between m-2">
+                              <DropdownMenuLabel>{value} </DropdownMenuLabel>
+                              <Checkbox
+                                checked={filtersToBeApplied.filterCriteria[
+                                  criteria.name
+                                ].values.includes(value)}
+                                onCheckedChange={(v) => {
+                                  setFiltersToBeApplied(
+                                    modifyFiltersToBeApplied(
+                                      v,
+                                      criteria.name,
+                                      value,
+                                      filtersToBeApplied
+                                    )
+                                  );
+                                  toggleFiltersApplied(!filtersApplied);
+                                  console.log(filtersToBeApplied);
+                                  console.log(
+                                    filtersToBeApplied.filterCriteria[
+                                      criteria.name
+                                    ].values.includes(value)
+                                  );
+                                }}
+                              />
+                            </div>
+                          ))
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ))
+                : null
               : null}
           </div>
           <div className="grid  gap-2 sm:grid-cols-3">
@@ -152,7 +235,7 @@ const App = () => {
               ? viewProducts
                 ? products.length > 0
                   ? products.map((product) => (
-                      <div className="h-[230px] max-w-sm bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
+                      <div className=" max-w-sm bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
                         <img
                           className="rounded-t-lg"
                           src={product.thumbnail}
@@ -166,17 +249,27 @@ const App = () => {
                       </div>
                     ))
                   : null
-                : catalog[
-                    catalogStack[catalogStack.length - 1]
+                : catalog &&
+                  catalog[
+                    catalogStack[catalogStack.length - 1].name
                   ].subcategories.map((category, index) => (
                     <Button
                       onClick={() => {
                         if (catalog[category.name]) {
-                          pushToCatalogStack(category.name);
+                          pushToCatalogStack({
+                            id: category.id,
+                            name: category.name,
+                          });
                         } else {
-                          pushToCatalogStack(category.name);
-                          fetchProducts(category.id);
+                          pushToCatalogStack({
+                            id: category.id,
+                            name: category.name,
+                          });
+                          fetchProducts(category.id).then((res) =>
+                            setProducts(res)
+                          );
                           fetchFilters(category.id);
+
                           toggleViewProducts(true);
                         }
                         console.log();
@@ -206,3 +299,41 @@ const App = () => {
 };
 
 export default App;
+
+function initFiltersToBeApplied(data) {
+  var initialFilters = {};
+  if (data.filterCriteria) {
+    initialFilters["filterCriteria"] = data.filterCriteria.reduce(
+      (acc, item) => {
+        let { id, ...newItem } = item;
+        newItem.values = [];
+        acc[item.name] = newItem;
+        return acc;
+      },
+      {}
+    );
+  }
+  if (data.sortCriteria) {
+    initialFilters["sortCriteria"] = [];
+  }
+  return initialFilters;
+}
+
+function modifyFiltersToBeApplied(
+  checked,
+  filterCriterion,
+  value,
+  filtersToBeApplied
+) {
+  if (checked) {
+    filtersToBeApplied.filterCriteria[filterCriterion].values.push(value);
+  } else {
+    filtersToBeApplied.filterCriteria[filterCriterion].values =
+      filtersToBeApplied.filterCriteria[filterCriterion].values.filter(
+        (item) => item !== value
+      );
+  }
+  return filtersToBeApplied;
+  // console.log(filtersToBeApplied.current.filterCriteria)
+  // console.log(filtersToBeApplied.current.filterCriteria[filterCriterion].values.includes(value));
+}
