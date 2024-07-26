@@ -25,9 +25,7 @@ const App = () => {
   const [catalogStack, setCatalogStack] = useState([]);
   const [products, setProducts] = useState([]);
   const [filters, setFilters] = useState({});
-  const [viewProducts, toggleViewProducts] = useState(false);
   const [filtersToBeApplied, setFiltersToBeApplied] = useState({});
-  const [filtersApplied, toggleFiltersApplied] = useState(false);
 
   const pushToCatalogStack = (item) => {
     setCatalogStack((prevStack) => [...prevStack, item]);
@@ -46,7 +44,9 @@ const App = () => {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/v1/catalog`);
       const data = await res.json();
       console.log(data);
-      setCatalog(data.data.catalog);
+      setCatalog((prev) => {
+        return { ...prev, ...data.data.catalog };
+      });
       pushToCatalogStack({ id: -1, name: "root" });
     } catch (error) {
       console.log("Error fetching data", error);
@@ -99,8 +99,7 @@ const App = () => {
               if (catalogStack.length > 1) {
                 popFromCatalogStack();
               }
-              if (viewProducts) {
-                toggleViewProducts(!viewProducts);
+              if (products && products.length) {
                 setProducts([]);
                 setFilters({});
                 setFiltersToBeApplied({});
@@ -155,133 +154,129 @@ const App = () => {
               </DropdownMenu>
             ) : null}
             {Object.keys(filters).length > 0
-              ? filtersApplied || !filtersApplied
-                ? filters.filterCriteria.map((criteria) => (
-                    <DropdownMenu
-                      className="border-black "
-                      onOpenChange={(v) => {
-                        if (!v) {
-                          fetchProducts(
-                            catalogStack[catalogStack.length - 1].id,
-                            {
-                              filterCriteria: Object.values(
-                                filtersToBeApplied.filterCriteria
-                              ).filter((e) => e.values.length),
-                            }
-                          ).then((res) => {
-                            setProducts(res??[]);
-                            console.log("res", res);
-                          });
-                        }
-                      }}
-                    >
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="rounded-full font-bold"
-                        >
-                          {criteria.name}
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        {criteria.name == "price" ? (
-                          <div className="flex w-40 max-w-sm items-center space-x-2 m-3">
-                            <p>${Math.min(...criteria.values.map(Number))}</p>
-                            <Slider
-                              className=""
-                              defaultValue={[33]}
-                              max={100}
-                              step={1}
-                            />
-                            <p>${Math.max(...criteria.values.map(Number))}</p>
-                          </div>
-                        ) : (
-                          criteria.values.map((value) => (
-                            <div className="flex items-center justify-between m-2">
-                              <DropdownMenuLabel>{value} </DropdownMenuLabel>
-                              <Checkbox
-                                checked={filtersToBeApplied.filterCriteria[
-                                  criteria.name
-                                ].values.includes(value)}
-                                onCheckedChange={(v) => {
-                                  setFiltersToBeApplied(
-                                    modifyFiltersToBeApplied(
+              ? filters.filterCriteria.map((criteria) => (
+                  <DropdownMenu
+                    className="border-black "
+                    onOpenChange={(v) => {
+                      if (!v) {
+                        fetchProducts(
+                          catalogStack[catalogStack.length - 1].id,
+                          {
+                            filterCriteria: Object.values(
+                              filtersToBeApplied.filterCriteria
+                            ).filter((e) => e.values.length),
+                          }
+                        ).then((res) => {
+                          setProducts(res ?? []);
+                          console.log("res", res);
+                        });
+                      }
+                    }}
+                  >
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="rounded-full font-bold"
+                      >
+                        {criteria.name}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      {criteria.name == "price" ? (
+                        <div className="flex w-40 max-w-sm items-center space-x-2 m-3">
+                          <p>${Math.min(...criteria.values.map(Number))}</p>
+                          <Slider
+                            className=""
+                            defaultValue={[33]}
+                            max={100}
+                            step={1}
+                          />
+                          <p>${Math.max(...criteria.values.map(Number))}</p>
+                        </div>
+                      ) : (
+                        criteria.values.map((value) => (
+                          <div className="flex items-center justify-between m-2">
+                            <DropdownMenuLabel>{value} </DropdownMenuLabel>
+                            <Checkbox
+                              checked={filtersToBeApplied.filterCriteria[
+                                criteria.name
+                              ].values.includes(value)}
+                              onCheckedChange={(v) => {
+                                setFiltersToBeApplied((prev) => {
+                                  return {
+                                    ...prev,
+                                    ...modifyFiltersToBeApplied(
                                       v,
                                       criteria.name,
                                       value,
                                       filtersToBeApplied
-                                    )
-                                  );
-                                  toggleFiltersApplied(!filtersApplied);
-                                  console.log(filtersToBeApplied);
-                                  console.log(
-                                    filtersToBeApplied.filterCriteria[
-                                      criteria.name
-                                    ].values.includes(value)
-                                  );
-                                }}
-                              />
-                            </div>
-                          ))
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  ))
-                : null
+                                    ),
+                                  };
+                                });
+                                console.log(filtersToBeApplied);
+                                console.log(
+                                  filtersToBeApplied.filterCriteria[
+                                    criteria.name
+                                  ].values.includes(value)
+                                );
+                              }}
+                            />
+                          </div>
+                        ))
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ))
               : null}
           </div>
           <div className="grid  gap-2 sm:grid-cols-3">
-            {catalogStack.length > 0
-              ? viewProducts
-                ? products.length > 0
-                  ? products.map((product) => (
-                      <div className=" max-w-sm bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
-                        <img
-                          className="rounded-t-lg"
-                          src={product.thumbnail}
-                          alt=""
-                        />
-                        <div className="p-5">
-                          <h5 className="mb-2  font-bold tracking-tight text-gray-900 dark:text-white line-clamp-3">
-                            {product.name}
-                          </h5>
-                        </div>
-                      </div>
-                    ))
-                  : null
-                : catalog &&
-                  catalog[
-                    catalogStack[catalogStack.length - 1].name
-                  ].subcategories.map((category, index) => (
-                    <Button
-                      onClick={() => {
-                        if (catalog[category.name]) {
-                          pushToCatalogStack({
-                            id: category.id,
-                            name: category.name,
-                          });
-                        } else {
-                          pushToCatalogStack({
-                            id: category.id,
-                            name: category.name,
-                          });
-                          fetchProducts(category.id).then((res) =>
-                            setProducts(res)
-                          );
-                          fetchFilters(category.id);
-
-                          toggleViewProducts(true);
-                        }
-                        console.log();
-                      }}
-                      key={index}
-                      type="submit"
-                      className="hover:bg-red-200 bg-red-100 font-bold text-red-500"
-                    >
-                      {category.name.charAt(0).toUpperCase() +
-                        category.name.slice(1)}
-                    </Button>
-                  ))
+            {catalogStack.length &&
+            catalogStack[catalogStack.length - 1].name in catalog
+              ? catalog[
+                  catalogStack[catalogStack.length - 1].name
+                ].subcategories.map((category, index) => (
+                  <Button
+                    onClick={() => {
+                      if (catalog[category.name]) {
+                        pushToCatalogStack({
+                          id: category.id,
+                          name: category.name,
+                        });
+                      } else {
+                        pushToCatalogStack({
+                          id: category.id,
+                          name: category.name,
+                        });
+                        fetchProducts(category.id).then((res) =>
+                          setProducts((prev) => [...prev, ...res])
+                        );
+                        fetchFilters(category.id);
+                      }
+                      console.log();
+                    }}
+                    key={index}
+                    type="submit"
+                    className="hover:bg-red-200 bg-red-100 font-bold text-red-500"
+                  >
+                    {category.name.charAt(0).toUpperCase() +
+                      category.name.slice(1)}
+                  </Button>
+                ))
+              : products.length
+              ? products.map((product) => (
+                  <div className=" max-w-sm bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
+                    <img
+                      className="rounded-t-lg"
+                      src={product.thumbnail}
+                      alt=""
+                    />
+                    <div className="p-5">
+                      <h5 className="mb-2  font-bold tracking-tight text-gray-900 dark:text-white line-clamp-3">
+                        {product.name}
+                      </h5>
+                    </div>
+                  </div>
+                ))
               : null}
           </div>
 
