@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { IoIosArrowBack } from "react-icons/io";
+import { IoIosCheckmark } from "react-icons/io";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -13,6 +14,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -26,6 +28,7 @@ const App = () => {
   const [products, setProducts] = useState([]);
   const [filters, setFilters] = useState({});
   const [filtersToBeApplied, setFiltersToBeApplied] = useState({});
+  const slidersState = {};
 
   const pushToCatalogStack = (item) => {
     setCatalogStack((prevStack) => [...prevStack, item]);
@@ -133,7 +136,25 @@ const App = () => {
             }`}
           >
             {filters.sortCriteria ? (
-              <DropdownMenu className="border-black ">
+              <DropdownMenu
+                className="border-black "
+                onOpenChange={(v) => {
+                  if (!v) {
+                    fetchProducts(catalogStack[catalogStack.length - 1].id, {
+                      filterCriteria: Object.values(
+                        filtersToBeApplied.filterCriteria
+                      ).filter((e) => e.values.length || e.values.min),
+                      sortCriteria: Object.keys(filtersToBeApplied.sortCriteria)
+                        .length
+                        ? filtersToBeApplied.sortCriteria
+                        : null,
+                    }).then((res) => {
+                      setProducts(res ?? []);
+                      console.log("res", res);
+                    });
+                  }
+                }}
+              >
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="rounded-full font-bold">
                     sort
@@ -142,11 +163,51 @@ const App = () => {
                 <DropdownMenuContent>
                   {filters.sortCriteria.map((value) => (
                     <>
-                      <DropdownMenuLabel>
-                        {value}&nbsp;&nbsp;&nbsp;&nbsp;(inc)
+                      <DropdownMenuLabel className="flex items-center justify-between m-2">
+                        <DropdownMenuCheckboxItem
+                          checked={
+                            filtersToBeApplied.sortCriteria.name == value &&
+                            filtersToBeApplied.sortCriteria.order == "asc"
+                          }
+                          onCheckedChange={(v) => {
+                            setFiltersToBeApplied((prev) => {
+                              return {
+                                ...prev,
+                                ...modifySortCriterionToBeApplied(
+                                  value,
+                                  "asc",
+                                  filtersToBeApplied
+                                ),
+                              };
+                            });
+                          }}
+                        >
+                          {value}
+                          &nbsp;&nbsp;&nbsp;&nbsp;(inc)&nbsp;&nbsp;&nbsp;&nbsp;
+                        </DropdownMenuCheckboxItem>
                       </DropdownMenuLabel>
-                      <DropdownMenuLabel>
-                        {value}&nbsp;&nbsp;&nbsp;&nbsp;(dec)
+                      <DropdownMenuLabel className="flex items-center justify-between m-2">
+                        <DropdownMenuCheckboxItem
+                          checked={
+                            filtersToBeApplied.sortCriteria.name == value &&
+                            filtersToBeApplied.sortCriteria.order == "desc"
+                          }
+                          onCheckedChange={(v) => {
+                            setFiltersToBeApplied((prev) => {
+                              return {
+                                ...prev,
+                                ...modifySortCriterionToBeApplied(
+                                  value,
+                                  "desc",
+                                  filtersToBeApplied
+                                ),
+                              };
+                            });
+                          }}
+                        >
+                          {value}
+                          &nbsp;&nbsp;&nbsp;&nbsp;(dec)&nbsp;&nbsp;&nbsp;&nbsp;
+                        </DropdownMenuCheckboxItem>
                       </DropdownMenuLabel>
                     </>
                   ))}
@@ -164,7 +225,8 @@ const App = () => {
                           {
                             filterCriteria: Object.values(
                               filtersToBeApplied.filterCriteria
-                            ).filter((e) => e.values.length),
+                            ).filter((e) => e.values.length || e.values.min),
+                            sortCriteria: filtersToBeApplied.sortCriteria,
                           }
                         ).then((res) => {
                           setProducts(res ?? []);
@@ -183,15 +245,53 @@ const App = () => {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent>
                       {criteria.name == "price" ? (
-                        <div className="flex w-40 max-w-sm items-center space-x-2 m-3">
-                          <p>${Math.min(...criteria.values.map(Number))}</p>
+                        <div className="w-40 m-4">
                           <Slider
                             className=""
-                            defaultValue={[33]}
-                            max={100}
+                            minStepsBetweenThumbs={1}
+                            defaultValue={[
+                              Math.min(...criteria.values.map(Number)),
+                              Math.max(...criteria.values.map(Number)),
+                            ]}
+                            max={Math.max(...criteria.values.map(Number))}
+                            min={Math.min(...criteria.values.map(Number))}
+                            value={[
+                              filtersToBeApplied.filterCriteria[criteria.name]
+                                .values.min,
+                              filtersToBeApplied.filterCriteria[criteria.name]
+                                .values.max,
+                            ]}
                             step={1}
+                            onValueChange={(v) => {
+                              setFiltersToBeApplied((prev) => {
+                                return {
+                                  ...prev,
+                                  ...modifyRangeFiltersToBeApplied(
+                                    criteria.name,
+                                    v,
+                                    filtersToBeApplied
+                                  ),
+                                };
+                              });
+                              slidersState[criteria.name] = v;
+                            }}
                           />
-                          <p>${Math.max(...criteria.values.map(Number))}</p>
+                          <div className="flex text-gray-800 place-content-center space-x-3 m-4">
+                            <p>
+                              $
+                              {
+                                filtersToBeApplied.filterCriteria[criteria.name]
+                                  .values.min
+                              }
+                            </p>
+                            <p>
+                              $
+                              {
+                                filtersToBeApplied.filterCriteria[criteria.name]
+                                  .values.max
+                              }
+                            </p>
+                          </div>
                         </div>
                       ) : (
                         criteria.values.map((value) => (
@@ -301,7 +401,13 @@ function initFiltersToBeApplied(data) {
     initialFilters["filterCriteria"] = data.filterCriteria.reduce(
       (acc, item) => {
         let { id, ...newItem } = item;
-        newItem.values = [];
+        newItem.values =
+          item.values.length && !isNaN(item.values[0])
+            ? {
+                min: Math.min(...item.values.map(Number)),
+                max: Math.max(...item.values.map(Number)),
+              }
+            : [];
         acc[item.name] = newItem;
         return acc;
       },
@@ -309,8 +415,9 @@ function initFiltersToBeApplied(data) {
     );
   }
   if (data.sortCriteria) {
-    initialFilters["sortCriteria"] = [];
+    initialFilters["sortCriteria"] = {};
   }
+  console.log("inititit", initialFilters["filterCriteria"]);
   return initialFilters;
 }
 
@@ -331,4 +438,33 @@ function modifyFiltersToBeApplied(
   return filtersToBeApplied;
   // console.log(filtersToBeApplied.current.filterCriteria)
   // console.log(filtersToBeApplied.current.filterCriteria[filterCriterion].values.includes(value));
+}
+
+function modifyRangeFiltersToBeApplied(
+  filterCriterion,
+  values,
+  filtersToBeApplied
+) {
+  filtersToBeApplied.filterCriteria[filterCriterion].values = {
+    min: values[0],
+    max: values[1],
+  };
+  return filtersToBeApplied;
+}
+
+function modifySortCriterionToBeApplied(
+  sortCriterion,
+  order,
+  filtersToBeApplied
+) {
+  filtersToBeApplied.sortCriteria =
+    filtersToBeApplied.sortCriteria.name == sortCriterion &&
+    filtersToBeApplied.sortCriteria.order == order
+      ? {}
+      : {
+          name: sortCriterion,
+          order: order,
+        };
+  console.log("ftba", filtersToBeApplied);
+  return filtersToBeApplied;
 }
