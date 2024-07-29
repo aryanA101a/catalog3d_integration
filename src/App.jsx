@@ -21,15 +21,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import isEqual from 'lodash.isequal';
 
 const App = () => {
   const [catalog, setCatalog] = useState({});
   const [catalogStack, setCatalogStack] = useState([]);
   const [products, setProducts] = useState([]);
   const [filters, setFilters] = useState({});
-  const [filtersToBeApplied, setFiltersToBeApplied] = useState({});
-  const slidersState = {};
-
+  var prevFilterBody = useRef({});
   const pushToCatalogStack = (item) => {
     setCatalogStack((prevStack) => [...prevStack, item]);
   };
@@ -82,9 +81,7 @@ const App = () => {
       );
       const data = await res.json();
       console.log(data);
-      setFilters(data);
-      setFiltersToBeApplied(initFiltersToBeApplied(data));
-      // console.log("filtersToBeApplied", filtersToBeApplied);
+      setFilters(initFilters(data));
     } catch (error) {
       console.log("Error fetching data", error);
     }
@@ -105,7 +102,6 @@ const App = () => {
               if (products && products.length) {
                 setProducts([]);
                 setFilters({});
-                setFiltersToBeApplied({});
               }
             }}
             type="submit"
@@ -139,19 +135,18 @@ const App = () => {
               <DropdownMenu
                 className="border-black "
                 onOpenChange={(v) => {
-                  if (!v) {
-                    fetchProducts(catalogStack[catalogStack.length - 1].id, {
-                      filterCriteria: Object.values(
-                        filtersToBeApplied.filterCriteria
-                      ).filter((e) => e.values.length || e.values.min),
-                      sortCriteria: Object.keys(filtersToBeApplied.sortCriteria)
-                        .length
-                        ? filtersToBeApplied.sortCriteria
-                        : null,
-                    }).then((res) => {
+                  var newFilterBody = generateFilterBody(filters);
+                  if (
+                    !v &&
+                    !isEqual(newFilterBody, prevFilterBody.current)
+                  ) {
+                    fetchProducts(
+                      catalogStack[catalogStack.length - 1].id,
+                      newFilterBody
+                    ).then((res) => {
                       setProducts(res ?? []);
-                      console.log("res", res);
                     });
+                    prevFilterBody.current = newFilterBody;
                   }
                 }}
               >
@@ -161,22 +156,22 @@ const App = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
-                  {filters.sortCriteria.map((value) => (
+                  {filters.sortCriteria.possibleValues.map((value) => (
                     <>
                       <DropdownMenuLabel className="flex items-center justify-between m-2">
                         <DropdownMenuCheckboxItem
                           checked={
-                            filtersToBeApplied.sortCriteria.name == value &&
-                            filtersToBeApplied.sortCriteria.order == "asc"
+                            filters.sortCriteria.value.name == value &&
+                            filters.sortCriteria.value.order == "asc"
                           }
                           onCheckedChange={(v) => {
-                            setFiltersToBeApplied((prev) => {
+                            setFilters((prev) => {
                               return {
                                 ...prev,
                                 ...modifySortCriterionToBeApplied(
                                   value,
                                   "asc",
-                                  filtersToBeApplied
+                                  filters
                                 ),
                               };
                             });
@@ -189,17 +184,17 @@ const App = () => {
                       <DropdownMenuLabel className="flex items-center justify-between m-2">
                         <DropdownMenuCheckboxItem
                           checked={
-                            filtersToBeApplied.sortCriteria.name == value &&
-                            filtersToBeApplied.sortCriteria.order == "desc"
+                            filters.sortCriteria.value.name == value &&
+                            filters.sortCriteria.value.order == "desc"
                           }
                           onCheckedChange={(v) => {
-                            setFiltersToBeApplied((prev) => {
+                            setFilters((prev) => {
                               return {
                                 ...prev,
                                 ...modifySortCriterionToBeApplied(
                                   value,
                                   "desc",
-                                  filtersToBeApplied
+                                  filters
                                 ),
                               };
                             });
@@ -215,23 +210,22 @@ const App = () => {
               </DropdownMenu>
             ) : null}
             {Object.keys(filters).length > 0
-              ? filters.filterCriteria.map((criteria) => (
+              ? Object.values(filters.filterCriteria).map((criteria) => (
                   <DropdownMenu
                     className="border-black "
                     onOpenChange={(v) => {
-                      if (!v) {
+                      var newFilterBody = generateFilterBody(filters);
+                      if (
+                        !v &&
+                        !isEqual(newFilterBody, prevFilterBody.current)
+                      ) {
                         fetchProducts(
                           catalogStack[catalogStack.length - 1].id,
-                          {
-                            filterCriteria: Object.values(
-                              filtersToBeApplied.filterCriteria
-                            ).filter((e) => e.values.length || e.values.min),
-                            sortCriteria: filtersToBeApplied.sortCriteria,
-                          }
+                          newFilterBody
                         ).then((res) => {
                           setProducts(res ?? []);
-                          console.log("res", res);
                         });
+                        prevFilterBody.current = newFilterBody;
                       }
                     }}
                   >
@@ -250,72 +244,67 @@ const App = () => {
                             className=""
                             minStepsBetweenThumbs={1}
                             defaultValue={[
-                              Math.min(...criteria.values.map(Number)),
-                              Math.max(...criteria.values.map(Number)),
+                              Math.min(...criteria.possibleValues.map(Number)),
+                              Math.max(...criteria.possibleValues.map(Number)),
                             ]}
-                            max={Math.max(...criteria.values.map(Number))}
-                            min={Math.min(...criteria.values.map(Number))}
+                            max={Math.max(
+                              ...criteria.possibleValues.map(Number)
+                            )}
+                            min={Math.min(
+                              ...criteria.possibleValues.map(Number)
+                            )}
                             value={[
-                              filtersToBeApplied.filterCriteria[criteria.name]
-                                .values.min,
-                              filtersToBeApplied.filterCriteria[criteria.name]
-                                .values.max,
+                              filters.filterCriteria[criteria.name].values.min,
+                              filters.filterCriteria[criteria.name].values.max,
                             ]}
                             step={1}
                             onValueChange={(v) => {
-                              setFiltersToBeApplied((prev) => {
+                              setFilters((prev) => {
                                 return {
                                   ...prev,
-                                  ...modifyRangeFiltersToBeApplied(
+                                  ...modifyRangeFilters(
                                     criteria.name,
                                     v,
-                                    filtersToBeApplied
+                                    filters
                                   ),
                                 };
                               });
-                              slidersState[criteria.name] = v;
                             }}
                           />
                           <div className="flex text-gray-800 place-content-center space-x-3 m-4">
                             <p>
                               $
-                              {
-                                filtersToBeApplied.filterCriteria[criteria.name]
-                                  .values.min
-                              }
+                              {filters.filterCriteria[criteria.name].values.min}
                             </p>
                             <p>
                               $
-                              {
-                                filtersToBeApplied.filterCriteria[criteria.name]
-                                  .values.max
-                              }
+                              {filters.filterCriteria[criteria.name].values.max}
                             </p>
                           </div>
                         </div>
                       ) : (
-                        criteria.values.map((value) => (
+                        criteria.possibleValues.map((value) => (
                           <div className="flex items-center justify-between m-2">
                             <DropdownMenuLabel>{value} </DropdownMenuLabel>
                             <Checkbox
-                              checked={filtersToBeApplied.filterCriteria[
+                              checked={filters.filterCriteria[
                                 criteria.name
                               ].values.includes(value)}
                               onCheckedChange={(v) => {
-                                setFiltersToBeApplied((prev) => {
+                                setFilters((prev) => {
                                   return {
                                     ...prev,
                                     ...modifyFiltersToBeApplied(
                                       v,
                                       criteria.name,
                                       value,
-                                      filtersToBeApplied
+                                      filters
                                     ),
                                   };
                                 });
-                                console.log(filtersToBeApplied);
+                                console.log(filters);
                                 console.log(
-                                  filtersToBeApplied.filterCriteria[
+                                  filters.filterCriteria[
                                     criteria.name
                                   ].values.includes(value)
                                 );
@@ -395,76 +384,91 @@ const App = () => {
 
 export default App;
 
-function initFiltersToBeApplied(data) {
+function generateFilterBody(filters) {
+  var filterBody = {};
+  console.log("gen", filters);
+  var filterCriteria = Object.values(filters.filterCriteria)
+    .filter(
+      (value) =>
+        value.values.length ||
+        (value.values.min &&
+          !(
+            value.values.min == Math.min(...value.possibleValues.map(Number)) &&
+            value.values.max == Math.max(...value.possibleValues.map(Number))
+          ))
+    )
+    .map((e) => {
+      var { id, possibleValues, ...newItem } = e;
+      return newItem;
+    });
+
+  if (filterCriteria.length) {
+    filterBody.filterCriteria = filterCriteria;
+  }
+
+  if (Object.keys(filters.sortCriteria.value).length) {
+    filterBody.sortCriteria = filters.sortCriteria.value;
+  }
+  console.log("filters", filterBody);
+  return filterBody;
+}
+
+function initFilters(data) {
   var initialFilters = {};
   if (data.filterCriteria) {
     initialFilters["filterCriteria"] = data.filterCriteria.reduce(
       (acc, item) => {
-        let { id, ...newItem } = item;
-        newItem.values =
-          item.values.length && !isNaN(item.values[0])
+        item.possibleValues = item.values;
+        item.values =
+          item.possibleValues.length && !isNaN(item.possibleValues[0])
             ? {
-                min: Math.min(...item.values.map(Number)),
-                max: Math.max(...item.values.map(Number)),
+                min: Math.min(...item.possibleValues.map(Number)),
+                max: Math.max(...item.possibleValues.map(Number)),
               }
             : [];
-        acc[item.name] = newItem;
+
+        acc[item.name] = item;
         return acc;
       },
       {}
     );
   }
-  if (data.sortCriteria) {
-    initialFilters["sortCriteria"] = {};
-  }
-  console.log("inititit", initialFilters["filterCriteria"]);
+  initialFilters.sortCriteria = {
+    value: {},
+    possibleValues: data.sortCriteria,
+  };
+  console.log("inititit", initialFilters);
   return initialFilters;
 }
 
-function modifyFiltersToBeApplied(
-  checked,
-  filterCriterion,
-  value,
-  filtersToBeApplied
-) {
+function modifyFiltersToBeApplied(checked, filterCriterion, value, filters) {
   if (checked) {
-    filtersToBeApplied.filterCriteria[filterCriterion].values.push(value);
+    filters.filterCriteria[filterCriterion].values.push(value);
   } else {
-    filtersToBeApplied.filterCriteria[filterCriterion].values =
-      filtersToBeApplied.filterCriteria[filterCriterion].values.filter(
-        (item) => item !== value
-      );
+    filters.filterCriteria[filterCriterion].values = filters.filterCriteria[
+      filterCriterion
+    ].values.filter((item) => item !== value);
   }
-  return filtersToBeApplied;
-  // console.log(filtersToBeApplied.current.filterCriteria)
-  // console.log(filtersToBeApplied.current.filterCriteria[filterCriterion].values.includes(value));
+  return filters;
 }
 
-function modifyRangeFiltersToBeApplied(
-  filterCriterion,
-  values,
-  filtersToBeApplied
-) {
-  filtersToBeApplied.filterCriteria[filterCriterion].values = {
+function modifyRangeFilters(filterCriterion, values, filters) {
+  filters.filterCriteria[filterCriterion].values = {
     min: values[0],
     max: values[1],
   };
-  return filtersToBeApplied;
+  return filters;
 }
 
-function modifySortCriterionToBeApplied(
-  sortCriterion,
-  order,
-  filtersToBeApplied
-) {
-  filtersToBeApplied.sortCriteria =
-    filtersToBeApplied.sortCriteria.name == sortCriterion &&
-    filtersToBeApplied.sortCriteria.order == order
+function modifySortCriterionToBeApplied(sortCriterion, order, filters) {
+  filters.sortCriteria.value =
+    filters.sortCriteria.value.name == sortCriterion &&
+    filters.sortCriteria.value.order == order
       ? {}
       : {
           name: sortCriterion,
           order: order,
         };
-  console.log("ftba", filtersToBeApplied);
-  return filtersToBeApplied;
+  console.log("ftba", filters);
+  return filters;
 }
