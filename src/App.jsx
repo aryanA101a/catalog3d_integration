@@ -21,7 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import isEqual from 'lodash.isequal';
+import isEqual from "lodash.isequal";
 
 const App = () => {
   const [catalog, setCatalog] = useState({});
@@ -114,15 +114,15 @@ const App = () => {
           <Breadcrumb className="h-10">
             <BreadcrumbList>
               {catalogStack.map((category, index) => (
-                <>
-                  {index > 0 ? <BreadcrumbSeparator /> : null}
-                  <BreadcrumbItem>
+                <div className="flex items-center" key={category.id}>
+                  {index > 0 ? <BreadcrumbSeparator className="me-2" /> : null}
+                  <BreadcrumbItem >
                     {category.name == "root"
                       ? "Catalog"
                       : category.name.charAt(0).toUpperCase() +
                         category.name.slice(1)}
                   </BreadcrumbItem>
-                </>
+                </div>
               ))}
             </BreadcrumbList>
           </Breadcrumb>
@@ -136,10 +136,7 @@ const App = () => {
                 className="border-black "
                 onOpenChange={(v) => {
                   var newFilterBody = generateFilterBody(filters);
-                  if (
-                    !v &&
-                    !isEqual(newFilterBody, prevFilterBody.current)
-                  ) {
+                  if (!v && !isEqual(newFilterBody, prevFilterBody.current)) {
                     fetchProducts(
                       catalogStack[catalogStack.length - 1].id,
                       newFilterBody
@@ -157,7 +154,7 @@ const App = () => {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
                   {filters.sortCriteria.possibleValues.map((value) => (
-                    <>
+                    <div key={value}>
                       <DropdownMenuLabel className="flex items-center justify-between m-2">
                         <DropdownMenuCheckboxItem
                           checked={
@@ -204,7 +201,7 @@ const App = () => {
                           &nbsp;&nbsp;&nbsp;&nbsp;(dec)&nbsp;&nbsp;&nbsp;&nbsp;
                         </DropdownMenuCheckboxItem>
                       </DropdownMenuLabel>
-                    </>
+                    </div>
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -212,6 +209,7 @@ const App = () => {
             {Object.keys(filters).length > 0
               ? Object.values(filters.filterCriteria).map((criteria) => (
                   <DropdownMenu
+                    key={criteria.id}
                     className="border-black "
                     onOpenChange={(v) => {
                       var newFilterBody = generateFilterBody(filters);
@@ -284,7 +282,10 @@ const App = () => {
                         </div>
                       ) : (
                         criteria.possibleValues.map((value) => (
-                          <div className="flex items-center justify-between m-2">
+                          <div
+                            key={value}
+                            className="flex items-center justify-between m-2"
+                          >
                             <DropdownMenuLabel>{value} </DropdownMenuLabel>
                             <Checkbox
                               checked={filters.filterCriteria[
@@ -302,12 +303,6 @@ const App = () => {
                                     ),
                                   };
                                 });
-                                console.log(filters);
-                                console.log(
-                                  filters.filterCriteria[
-                                    criteria.name
-                                  ].values.includes(value)
-                                );
                               }}
                             />
                           </div>
@@ -325,6 +320,7 @@ const App = () => {
                   catalogStack[catalogStack.length - 1].name
                 ].subcategories.map((category, index) => (
                   <Button
+                    key={category.id}
                     onClick={() => {
                       if (catalog[category.name]) {
                         pushToCatalogStack({
@@ -343,7 +339,6 @@ const App = () => {
                       }
                       console.log();
                     }}
-                    key={index}
                     type="submit"
                     className="hover:bg-red-200 bg-red-100 font-bold text-red-500"
                   >
@@ -353,7 +348,7 @@ const App = () => {
                 ))
               : products.length
               ? products.map((product) => (
-                  <div className=" max-w-sm bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
+                  <div key={product.id} className=" max-w-sm bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
                     <img
                       className="rounded-t-lg"
                       src={product.thumbnail}
