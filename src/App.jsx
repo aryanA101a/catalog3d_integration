@@ -28,7 +28,10 @@ const App = () => {
   const [catalogStack, setCatalogStack] = useState([]);
   const [products, setProducts] = useState([]);
   const [filters, setFilters] = useState({});
+  const [showSearchResults, toggleShowSearchResults] = useState(false);
+  const [searchQuery,setSearchQuery] = useState("");
   var prevFilterBody = useRef({});
+  const searchResults = useRef([]);
   const pushToCatalogStack = (item) => {
     setCatalogStack((prevStack) => [...prevStack, item]);
   };
@@ -74,6 +77,22 @@ const App = () => {
       return [];
     }
   };
+  const fetchProductsBySearchQuery = async (searchQuery) => {
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/v1/products/search?q=${searchQuery}`,
+        {
+          method: "GET",
+        }
+      );
+      const data = await res.json();
+      console.log(data);
+      return data.products;
+    } catch (error) {
+      console.log("Error fetching data", error);
+      return [];
+    }
+  };
   const fetchFilters = async (categoryId) => {
     try {
       const res = await fetch(
@@ -96,120 +115,96 @@ const App = () => {
         <div className="flex w-full max-w-sm items-center space-x-2 m-6">
           <Button
             onClick={() => {
-              if (catalogStack.length > 1) {
-                popFromCatalogStack();
-              }
-              if (products && products.length) {
-                setProducts([]);
-                setFilters({});
+              if (showSearchResults) {
+                toggleShowSearchResults(false);
+                searchResults.current = [];
+                 setSearchQuery("");
+              } else {
+                if (catalogStack.length > 1) {
+                  popFromCatalogStack();
+                }
+                if (products && products.length) {
+                  setProducts([]);
+                  setFilters({});
+                }
               }
             }}
             type="submit"
           >
             <IoIosArrowBack />
           </Button>
-          <Input placeholder="Search" />
+          <Input
+            placeholder="Search"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery (e.target.value);
+              if (e.target.value == "") {
+                toggleShowSearchResults(false);
+                searchResults.current = [];
+              }
+              console.log(e.target.value,searchQuery)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                if (searchQuery != "") {
+                  fetchProductsBySearchQuery(e.target.value).then((res) => {
+                    searchResults.current = res;
+                    toggleShowSearchResults(true);
+                    console.log("sr", res);
+                  });
+                }
+              }
+            }}
+          />
         </div>
+
         <div className="m-6">
-          <Breadcrumb className="h-10">
-            <BreadcrumbList>
-              {catalogStack.map((category, index) => (
-                <div className="flex items-center" key={category.id}>
-                  {index > 0 ? <BreadcrumbSeparator className="me-2" /> : null}
-                  <BreadcrumbItem >
-                    {category.name == "root"
-                      ? "Catalog"
-                      : category.name.charAt(0).toUpperCase() +
-                        category.name.slice(1)}
-                  </BreadcrumbItem>
+          {showSearchResults ? (
+            <div className="grid  gap-2 sm:grid-cols-3">
+              {searchResults.current.length ? searchResults.current.map((product) => (
+                <div
+                  key={product.id}
+                  className=" max-w-sm bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700"
+                >
+                  <img
+                    className="rounded-t-lg"
+                    src={product.thumbnail}
+                    alt=""
+                  />
+                  <div className="p-5">
+                    <h5 className="mb-2  font-bold tracking-tight text-gray-900 dark:text-white line-clamp-3">
+                      {product.name}
+                    </h5>
+                  </div>
                 </div>
-              ))}
-            </BreadcrumbList>
-          </Breadcrumb>
-          <div
-            className={`grid gap-2 sm:grid-cols-3 ${
-              Object.keys(filters).length > 0 ? "m-4" : ""
-            }`}
-          >
-            {filters.sortCriteria ? (
-              <DropdownMenu
-                className="border-black "
-                onOpenChange={(v) => {
-                  var newFilterBody = generateFilterBody(filters);
-                  if (!v && !isEqual(newFilterBody, prevFilterBody.current)) {
-                    fetchProducts(
-                      catalogStack[catalogStack.length - 1].id,
-                      newFilterBody
-                    ).then((res) => {
-                      setProducts(res ?? []);
-                    });
-                    prevFilterBody.current = newFilterBody;
-                  }
-                }}
-              >
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="rounded-full font-bold">
-                    sort
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  {filters.sortCriteria.possibleValues.map((value) => (
-                    <div key={value}>
-                      <DropdownMenuLabel className="flex items-center justify-between m-2">
-                        <DropdownMenuCheckboxItem
-                          checked={
-                            filters.sortCriteria.value.name == value &&
-                            filters.sortCriteria.value.order == "asc"
-                          }
-                          onCheckedChange={(v) => {
-                            setFilters((prev) => {
-                              return {
-                                ...prev,
-                                ...modifySortCriterionToBeApplied(
-                                  value,
-                                  "asc",
-                                  filters
-                                ),
-                              };
-                            });
-                          }}
-                        >
-                          {value}
-                          &nbsp;&nbsp;&nbsp;&nbsp;(inc)&nbsp;&nbsp;&nbsp;&nbsp;
-                        </DropdownMenuCheckboxItem>
-                      </DropdownMenuLabel>
-                      <DropdownMenuLabel className="flex items-center justify-between m-2">
-                        <DropdownMenuCheckboxItem
-                          checked={
-                            filters.sortCriteria.value.name == value &&
-                            filters.sortCriteria.value.order == "desc"
-                          }
-                          onCheckedChange={(v) => {
-                            setFilters((prev) => {
-                              return {
-                                ...prev,
-                                ...modifySortCriterionToBeApplied(
-                                  value,
-                                  "desc",
-                                  filters
-                                ),
-                              };
-                            });
-                          }}
-                        >
-                          {value}
-                          &nbsp;&nbsp;&nbsp;&nbsp;(dec)&nbsp;&nbsp;&nbsp;&nbsp;
-                        </DropdownMenuCheckboxItem>
-                      </DropdownMenuLabel>
+              )):<p className="flex items-center justify-center col-span-3 h-28 font-bold">No Results!</p>}
+            </div>
+          ) : (
+            <>
+              <Breadcrumb className="h-10">
+                <BreadcrumbList>
+                  {catalogStack.map((category, index) => (
+                    <div className="flex items-center" key={category.id}>
+                      {index > 0 ? (
+                        <BreadcrumbSeparator className="me-2" />
+                      ) : null}
+                      <BreadcrumbItem>
+                        {category.name == "root"
+                          ? "Catalog"
+                          : category.name.charAt(0).toUpperCase() +
+                            category.name.slice(1)}
+                      </BreadcrumbItem>
                     </div>
                   ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
-            {Object.keys(filters).length > 0
-              ? Object.values(filters.filterCriteria).map((criteria) => (
+                </BreadcrumbList>
+              </Breadcrumb>
+              <div
+                className={`grid gap-2 sm:grid-cols-3 ${
+                  Object.keys(filters).length > 0 ? "m-4" : ""
+                }`}
+              >
+                {filters.sortCriteria ? (
                   <DropdownMenu
-                    key={criteria.id}
                     className="border-black "
                     onOpenChange={(v) => {
                       var newFilterBody = generateFilterBody(filters);
@@ -232,145 +227,245 @@ const App = () => {
                         variant="outline"
                         className="rounded-full font-bold"
                       >
-                        {criteria.name}
+                        sort
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent>
-                      {criteria.name == "price" ? (
-                        <div className="w-40 m-4">
-                          <Slider
-                            className=""
-                            minStepsBetweenThumbs={1}
-                            defaultValue={[
-                              Math.min(...criteria.possibleValues.map(Number)),
-                              Math.max(...criteria.possibleValues.map(Number)),
-                            ]}
-                            max={Math.max(
-                              ...criteria.possibleValues.map(Number)
-                            )}
-                            min={Math.min(
-                              ...criteria.possibleValues.map(Number)
-                            )}
-                            value={[
-                              filters.filterCriteria[criteria.name].values.min,
-                              filters.filterCriteria[criteria.name].values.max,
-                            ]}
-                            step={1}
-                            onValueChange={(v) => {
-                              setFilters((prev) => {
-                                return {
-                                  ...prev,
-                                  ...modifyRangeFilters(
-                                    criteria.name,
-                                    v,
-                                    filters
-                                  ),
-                                };
-                              });
-                            }}
-                          />
-                          <div className="flex text-gray-800 place-content-center space-x-3 m-4">
-                            <p>
-                              $
-                              {filters.filterCriteria[criteria.name].values.min}
-                            </p>
-                            <p>
-                              $
-                              {filters.filterCriteria[criteria.name].values.max}
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        criteria.possibleValues.map((value) => (
-                          <div
-                            key={value}
-                            className="flex items-center justify-between m-2"
-                          >
-                            <DropdownMenuLabel>{value} </DropdownMenuLabel>
-                            <Checkbox
-                              checked={filters.filterCriteria[
-                                criteria.name
-                              ].values.includes(value)}
+                      {filters.sortCriteria.possibleValues.map((value) => (
+                        <div key={value}>
+                          <DropdownMenuLabel className="flex items-center justify-between m-2">
+                            <DropdownMenuCheckboxItem
+                              checked={
+                                filters.sortCriteria.value.name == value &&
+                                filters.sortCriteria.value.order == "asc"
+                              }
                               onCheckedChange={(v) => {
                                 setFilters((prev) => {
                                   return {
                                     ...prev,
-                                    ...modifyFiltersToBeApplied(
-                                      v,
-                                      criteria.name,
+                                    ...modifySortCriterionToBeApplied(
                                       value,
+                                      "asc",
                                       filters
                                     ),
                                   };
                                 });
                               }}
-                            />
-                          </div>
-                        ))
-                      )}
+                            >
+                              {value}
+                              &nbsp;&nbsp;&nbsp;&nbsp;(inc)&nbsp;&nbsp;&nbsp;&nbsp;
+                            </DropdownMenuCheckboxItem>
+                          </DropdownMenuLabel>
+                          <DropdownMenuLabel className="flex items-center justify-between m-2">
+                            <DropdownMenuCheckboxItem
+                              checked={
+                                filters.sortCriteria.value.name == value &&
+                                filters.sortCriteria.value.order == "desc"
+                              }
+                              onCheckedChange={(v) => {
+                                setFilters((prev) => {
+                                  return {
+                                    ...prev,
+                                    ...modifySortCriterionToBeApplied(
+                                      value,
+                                      "desc",
+                                      filters
+                                    ),
+                                  };
+                                });
+                              }}
+                            >
+                              {value}
+                              &nbsp;&nbsp;&nbsp;&nbsp;(dec)&nbsp;&nbsp;&nbsp;&nbsp;
+                            </DropdownMenuCheckboxItem>
+                          </DropdownMenuLabel>
+                        </div>
+                      ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
-                ))
-              : null}
-          </div>
-          <div className="grid  gap-2 sm:grid-cols-3">
-            {catalogStack.length &&
-            catalogStack[catalogStack.length - 1].name in catalog
-              ? catalog[
-                  catalogStack[catalogStack.length - 1].name
-                ].subcategories.map((category, index) => (
-                  <Button
-                    key={category.id}
-                    onClick={() => {
-                      if (catalog[category.name]) {
-                        pushToCatalogStack({
-                          id: category.id,
-                          name: category.name,
-                        });
-                      } else {
-                        pushToCatalogStack({
-                          id: category.id,
-                          name: category.name,
-                        });
-                        fetchProducts(category.id).then((res) =>
-                          setProducts((prev) => [...prev, ...res])
-                        );
-                        fetchFilters(category.id);
-                      }
-                      console.log();
-                    }}
-                    type="submit"
-                    className="hover:bg-red-200 bg-red-100 font-bold text-red-500"
-                  >
-                    {category.name.charAt(0).toUpperCase() +
-                      category.name.slice(1)}
-                  </Button>
-                ))
-              : products.length
-              ? products.map((product) => (
-                  <div key={product.id} className=" max-w-sm bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
-                    <img
-                      className="rounded-t-lg"
-                      src={product.thumbnail}
-                      alt=""
-                    />
-                    <div className="p-5">
-                      <h5 className="mb-2  font-bold tracking-tight text-gray-900 dark:text-white line-clamp-3">
-                        {product.name}
-                      </h5>
-                    </div>
-                  </div>
-                ))
-              : null}
-          </div>
+                ) : null}
+                {Object.keys(filters).length > 0
+                  ? Object.values(filters.filterCriteria).map((criteria) => (
+                      <DropdownMenu
+                        key={criteria.id}
+                        className="border-black "
+                        onOpenChange={(v) => {
+                          var newFilterBody = generateFilterBody(filters);
+                          if (
+                            !v &&
+                            !isEqual(newFilterBody, prevFilterBody.current)
+                          ) {
+                            fetchProducts(
+                              catalogStack[catalogStack.length - 1].id,
+                              newFilterBody
+                            ).then((res) => {
+                              setProducts(res ?? []);
+                            });
+                            prevFilterBody.current = newFilterBody;
+                          }
+                        }}
+                      >
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="rounded-full font-bold"
+                          >
+                            {criteria.name}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          {criteria.name == "price" ? (
+                            <div className="w-40 m-4">
+                              <Slider
+                                className=""
+                                minStepsBetweenThumbs={1}
+                                defaultValue={[
+                                  Math.min(
+                                    ...criteria.possibleValues.map(Number)
+                                  ),
+                                  Math.max(
+                                    ...criteria.possibleValues.map(Number)
+                                  ),
+                                ]}
+                                max={Math.max(
+                                  ...criteria.possibleValues.map(Number)
+                                )}
+                                min={Math.min(
+                                  ...criteria.possibleValues.map(Number)
+                                )}
+                                value={[
+                                  filters.filterCriteria[criteria.name].values
+                                    .min,
+                                  filters.filterCriteria[criteria.name].values
+                                    .max,
+                                ]}
+                                step={1}
+                                onValueChange={(v) => {
+                                  setFilters((prev) => {
+                                    return {
+                                      ...prev,
+                                      ...modifyRangeFilters(
+                                        criteria.name,
+                                        v,
+                                        filters
+                                      ),
+                                    };
+                                  });
+                                }}
+                              />
+                              <div className="flex text-gray-800 place-content-center space-x-3 m-4">
+                                <p>
+                                  $
+                                  {
+                                    filters.filterCriteria[criteria.name].values
+                                      .min
+                                  }
+                                </p>
+                                <p>
+                                  $
+                                  {
+                                    filters.filterCriteria[criteria.name].values
+                                      .max
+                                  }
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            criteria.possibleValues.map((value) => (
+                              <div
+                                key={value}
+                                className="flex items-center justify-between m-2"
+                              >
+                                <DropdownMenuLabel>{value} </DropdownMenuLabel>
+                                <Checkbox
+                                  checked={filters.filterCriteria[
+                                    criteria.name
+                                  ].values.includes(value)}
+                                  onCheckedChange={(v) => {
+                                    setFilters((prev) => {
+                                      return {
+                                        ...prev,
+                                        ...modifyFiltersToBeApplied(
+                                          v,
+                                          criteria.name,
+                                          value,
+                                          filters
+                                        ),
+                                      };
+                                    });
+                                  }}
+                                />
+                              </div>
+                            ))
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ))
+                  : null}
+              </div>
+              <div className="grid  gap-2 sm:grid-cols-3">
+                {catalogStack.length &&
+                catalogStack[catalogStack.length - 1].name in catalog
+                  ? catalog[
+                      catalogStack[catalogStack.length - 1].name
+                    ].subcategories.map((category, index) => (
+                      <Button
+                        key={category.id}
+                        onClick={() => {
+                          if (catalog[category.name]) {
+                            pushToCatalogStack({
+                              id: category.id,
+                              name: category.name,
+                            });
+                          } else {
+                            pushToCatalogStack({
+                              id: category.id,
+                              name: category.name,
+                            });
+                            fetchProducts(category.id).then((res) =>
+                              setProducts((prev) => [...prev, ...res])
+                            );
+                            fetchFilters(category.id);
+                          }
+                          console.log();
+                        }}
+                        type="submit"
+                        className="hover:bg-red-200 bg-red-100 font-bold text-red-500"
+                      >
+                        {category.name.charAt(0).toUpperCase() +
+                          category.name.slice(1)}
+                      </Button>
+                    ))
+                  : products.length
+                  ? products.map((product) => (
+                      <div
+                        key={product.id}
+                        className=" max-w-sm bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700"
+                      >
+                        <img
+                          className="rounded-t-lg"
+                          src={product.thumbnail}
+                          alt=""
+                        />
+                        <div className="p-5">
+                          <h5 className="mb-2  font-bold tracking-tight text-gray-900 dark:text-white line-clamp-3">
+                            {product.name}
+                          </h5>
+                        </div>
+                      </div>
+                    ))
+                  : null}
+              </div>
 
-          {/* <div className="bg-slate-200 rounded-lg h-26">
+              {/* <div className="bg-slate-200 rounded-lg h-26">
             <img
               className="h-10"
               src="https://reactjs.org/logo-og.png"
               alt="React Image"
             />
           </div> */}
+            </>
+          )}
         </div>
       </div>
     </div>
