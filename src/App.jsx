@@ -30,8 +30,8 @@ const App = () => {
   const [filters, setFilters] = useState({});
   const [showSearchResults, toggleShowSearchResults] = useState(false);
   const [searchQuery,setSearchQuery] = useState("");
+  const [searchResults,setSearchResults] = useState([]);
   var prevFilterBody = useRef({});
-  const searchResults = useRef([]);
   const pushToCatalogStack = (item) => {
     setCatalogStack((prevStack) => [...prevStack, item]);
   };
@@ -117,7 +117,7 @@ const App = () => {
             onClick={() => {
               if (showSearchResults) {
                 toggleShowSearchResults(false);
-                searchResults.current = [];
+                setSearchResults ([]);
                  setSearchQuery("");
               } else {
                 if (catalogStack.length > 1) {
@@ -140,7 +140,7 @@ const App = () => {
               setSearchQuery (e.target.value);
               if (e.target.value == "") {
                 toggleShowSearchResults(false);
-                searchResults.current = [];
+                setSearchResults([]);
               }
               console.log(e.target.value,searchQuery)
             }}
@@ -148,7 +148,7 @@ const App = () => {
               if (e.key === "Enter") {
                 if (searchQuery != "") {
                   fetchProductsBySearchQuery(e.target.value).then((res) => {
-                    searchResults.current = res;
+                    setSearchResults(res);
                     toggleShowSearchResults(true);
                     console.log("sr", res);
                   });
@@ -161,7 +161,7 @@ const App = () => {
         <div className="m-6">
           {showSearchResults ? (
             <div className="grid  gap-2 sm:grid-cols-3">
-              {searchResults.current.length ? searchResults.current.map((product) => (
+              {searchResults.length ? searchResults.map((product) => (
                 <div
                   key={product.id}
                   className=" max-w-sm bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700"
